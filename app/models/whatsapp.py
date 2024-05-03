@@ -45,3 +45,12 @@ class WhatsappTextMessage(WhatsappMessage):
     def __init__(self, to: str, payload: WhatsappTextPayload) -> None:
         super().__init__(to=to, type=WhatsappMessageType.TEXT, payload=payload)
 
+class WhatsappReactionMessage(WhatsappMessage):
+    type: Literal[WhatsappMessageType.REACTION]
+    
+    def __init__(self, to: str, payload: WhatsappMessagePayload) -> None:
+        super().__init__(to=to, type=WhatsappMessageType.REACTION, payload=payload)
+
+class WhatsappReactionPayload(WhatsappMessagePayload):
+    message_id: str
+    emoji: str

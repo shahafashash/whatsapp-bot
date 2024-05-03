@@ -1,72 +1,54 @@
-from typing import Any, Dict
+from abc import ABC, abstractmethod
 from app.models.whatsapp import (
-    WhatsappMessageType, 
     WhatsappMessage, 
     WhatsappMessagePayload,
     WhatsappTextMessage,
     WhatsappTextPayload,
+    WhatsappReactionMessage,
+    WhatsappReactionPayload,
 )
 
-class WhatsappMessageFactory:
-    message_type_map = {
-        WhatsappMessageType.TEXT: WhatsappTextMessage,
-        # WhatsappMessageType.REACTION: WhatsappReactionMessage,
-        # WhatsappMessageType.IMAGE: WhatsappImageMessage,
-        # WhatsappMessageType.LOCATION: WhatsappLocationMessage,
-        # WhatsappMessageType.CONTACTS: WhatsappContactsMessage,
-        # WhatsappMessageType.LIST: WhatsappListMessage,
-        # WhatsappMessageType.BUTTON: WhatsappButtonMessage,
-    }
 
+class AbstractWhatsappMessageFactory(ABC):
+    """Interface for creating WhatsappMessage and WhatsappMessagePayload objects."""
     @staticmethod
-    def create_message(message_type: WhatsappMessageType, phone_number: str, payload: WhatsappMessagePayload) -> WhatsappMessage:
-        """Create a message object based on the message type.
+    @abstractmethod
+    def create_message(to: str, payload: WhatsappMessagePayload) -> WhatsappMessage:
+        """Creates a WhatsappMessage object with the given payload.
 
         Args:
-            message_type (WhatsappMessageType): The type of message to create.
-            phone_number (str): The phone number to send the message to.
-            payload (Any): The payload of the message.
+            to (str): The phone number to send the message to.
+            payload (WhatsappMessagePayload): The payload of the message.
 
         Returns:
             WhatsappMessage: The message object.
-        
-        Raises:
-            ValueError: If the message type is invalid.
         """
-        message_class = WhatsappMessageFactory.message_type_map.get(message_type)
-        if message_class is None:
-            raise ValueError(f'Invalid message type: {message_type}')
-        
-        message = message_class(to=phone_number, payload=payload)
-        return message
-    
-class WhatsappPayloadFactory:
-    message_payload_map = {
-        WhatsappMessageType.TEXT: WhatsappTextPayload,
-        # WhatsappMessageType.REACTION: WhatsappReactionPayload,
-        # WhatsappMessageType.IMAGE: WhatsappImagePayload,
-        # WhatsappMessageType.LOCATION: WhatsappLocationPayload,
-        # WhatsappMessageType.CONTACTS: WhatsappContactsPayload,
-        # WhatsappMessageType.LIST: WhatsappListPayload,
-        # WhatsappMessageType.BUTTON: WhatsappButtonPayload,
-    }
+        pass
 
     @staticmethod
-    def create_payload(message_type: WhatsappMessageType, payload: Dict[str, Any]) -> WhatsappMessagePayload:
-        """Create a message payload object based on the message type.
-
-        Args:
-            message_type (WhatsappMessageType): The type of message to create.
-            payload (Dict[str, Any]): The payload of the message.
+    @abstractmethod
+    def create_payload(*args, **kwargs) -> WhatsappMessagePayload:
+        """Creates a WhatsappMessagePayload object with the given keyword arguments.
 
         Returns:
             WhatsappMessagePayload: The message payload object.
-
-        Raises:
-            ValueError: If the message type is invalid.
         """
-        payload_class = WhatsappPayloadFactory.message_payload_map.get(message_type)
-        if payload_class is None:
-            raise ValueError(f'Invalid message type: {message_type}')
-        
-        return payload_class(**payload)
+        pass
+
+class WhatsappTextMessageFactory(AbstractWhatsappMessageFactory):
+    @staticmethod
+    def create_message(to: str, payload: WhatsappMessagePayload) -> WhatsappTextMessage:
+        return WhatsappTextMessage(to=to, payload=payload)
+
+    @staticmethod
+    def create_payload(body: str, preview_url: str) -> WhatsappTextPayload:
+        return WhatsappTextPayload(body=body, preview_url=preview_url)
+
+class WhatsappReactionMessageFactory(AbstractWhatsappMessageFactory):
+    @staticmethod
+    def create_message(to: str, payload: WhatsappMessagePayload) -> WhatsappReactionMessage:
+        return WhatsappReactionMessage(to=to, payload=payload)
+
+    @staticmethod
+    def create_payload(message_id: str, emoji: str) -> WhatsappReactionPayload:
+        return WhatsappReactionPayload(message_id=message_id, emoji=emoji)
