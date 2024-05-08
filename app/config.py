@@ -1,10 +1,12 @@
-from typing import Optional
-import sys
 import logging
 import re
+import sys
 from functools import lru_cache
+from typing import Optional
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     access_token: str
@@ -45,7 +47,7 @@ class Settings(BaseSettings):
     
     @field_validator('version')
     def validate_version(cls, value: str) -> str:
-        if not re.match(r'^v[0-9]+$', value):
+        if not re.match(r'^v[0-9]+\.[0-9]+?$', value):
             raise ValueError('Invalid version')
         return value
     

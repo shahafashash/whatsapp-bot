@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from app.config import get_settings, configure_logging
-from pydantic import BaseModel
+
+from app.config import configure_logging
 
 configure_logging()
 

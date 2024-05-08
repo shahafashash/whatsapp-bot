@@ -1,11 +1,20 @@
-from typing import Any, Dict, Literal
-import httpx
-import urllib.parse
+import hashlib
+import hmac
 import logging
-from app.config import Settings, get_settings
-from app.models.whatsapp import WhatsappMessage, WhatsappMessageHeaders, WhatsappMessageType
-from app.utils.factories import AbstractWhatsappMessageFactory, WhatsappTextMessageFactory, WhatsappReactionMessageFactory
+import re
+import urllib.parse
+from typing import Any, Dict, Literal
+
+import httpx
+
+from app.config import get_settings
+from app.models.whatsapp import (WhatsappMessage, WhatsappMessageHeaders,
+                                 WhatsappMessageType)
+from app.utils.factories import (AbstractWhatsappMessageFactory,
+                                 WhatsappReactionMessageFactory,
+                                 WhatsappTextMessageFactory)
 from app.utils.general import SingletonMeta
+
 
 class WhatsappService(metaclass=SingletonMeta):
     def __init__(self) -> None:
@@ -18,7 +27,7 @@ class WhatsappService(metaclass=SingletonMeta):
         }
         self.__headers: Dict[str, str] = WhatsappMessageHeaders().model_dump()
         self.__url: str = urllib.parse.urljoin(settings.whatsapp_api, endpoint)
-    
+
     async def __send(self, message: WhatsappMessage) -> None:
         async with httpx.AsyncClient() as client:
             try:
@@ -57,4 +66,46 @@ class WhatsappServiceValidator(metaclass=SingletonMeta):
             logging.error(f'Error validating whatsapp message: {e}')
             return False
     
+    @staticmethod
+    async def is_valid_token(hub_verify_token: str) -> bool:
+        settings = get_settings()
+        return hub_verify_token == settings.verify_token
     
+    @staticmethod
+    async def is_valid_signature(data: bytes, x_hub_signature: str) -> bool:
+        settings = get_settings()
+        signature = x_hub_signature.split('sha256=', maxsplit=1)[1]
+        app_secret = bytes(settings.app_secret, 'latin-1')
+        expected_signature = hmac.new(app_secret, data, hashlib.sha256).hexdigest()
+
+        return hmac.compare_digest(signature, expected_signature)
+        
+class WhatsappUtils:
+    @staticmethod
+    def prepare_message_text(text: str) -> str:
+        text = text.strip()
+
+        # remove brackets
+        text = re.sub(r'\[.*?\]', '', text)
+
+        # replace double asterisks with single asterisks
+        text = re.sub(r'\*\*(.*?)\*\*', r'*\1*', text)
+
+        return text
+    
+    @staticmethod
+    async def generate_response(text: str) -> str:
+        return f'You said: {text}'
+    
+    @staticmethod
+    async def process_message(body: Dict[str, Any]) -> str:
+        wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
+        name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+
+        message = body["entry"][0]["changes"][0]["value"]["messages"][0]
+        message_body = message["text"]["body"]
+
+        response = await WhatsappUtils.generate_response(message_body)
+        response = await WhatsappUtils.prepare_message_text(response)
+
+        return response

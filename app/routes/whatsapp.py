@@ -1,68 +1,49 @@
-
-from typing import Dict
 import logging
-import hmac
-import hashlib
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
-from app.models.whatsapp import WhatsappMessageWebhook, WhatsappMessageWebhookResponse
+
+from fastapi import APIRouter, HTTPException, Request, status
+
 from app.config import get_settings
+from app.models.whatsapp import WhatsappWebhookChallenge, WhatsappWebhookStatus
+from app.utils.whatsapp import (WhatsappService, WhatsappServiceValidator,
+                                WhatsappUtils)
 
 whatsapp_router = APIRouter(prefix='/whatsapp', tags=['whatsapp'])
 
-# def is_valid_whatsapp_message(body: Dict[str, str]) -> bool:
-#     return (
-#         body.get("object")
-#         and body.get("entry")
-#         and body["entry"][0].get("changes")
-#         and body["entry"][0]["changes"][0].get("value")
-#         and body["entry"][0]["changes"][0]["value"].get("messages")
-#         and body["entry"][0]["changes"][0]["value"]["messages"][0]
-#     )
+@whatsapp_router.get('/webhook', response_model=WhatsappWebhookChallenge, status_code=status.HTTP_200_OK)
+async def verify_whatsapp_webhook(request: Request):
+    mode = request.query_params.get('hub.mode')
+    token = request.query_params.get('hub.verify_token')
+    challenge = request.query_params.get('hub.challenge')
+    settings = get_settings()
+    if mode and token:
+        if mode == 'subscribe' and token == settings.verify_token:
+            logging.info('Whatsapp webhook verified')
+            return WhatsappWebhookChallenge(hub_challenge=challenge)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Invalid token provided')
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing required parameters')
+    
+@whatsapp_router.post('/webhook', response_model=WhatsappWebhookStatus, status_code=status.HTTP_200_OK)
+async def handle_whatsapp_webhook(request: Request):
+    body = await request.json()
+    logging.info(f'Whatsapp webhook received: {body}')
+    
+    statuses = body.get('entry', {[]})[0].get('changes', {[]})[0].get('value', {}).get('statuses', [])
+    if statuses:
+        logging.info(f'Whatsapp message status: {statuses}')
+        return WhatsappWebhookStatus(status='ok')
+    
+    try:
+        if WhatsappServiceValidator.is_valid_whatsapp_message(body):
+            response = await WhatsappUtils.process_message(body)
+            service = WhatsappService()
+            settings = get_settings()
+            await service.send_text_message(to=settings.recipient_waid, body=response)
+            return WhatsappWebhookStatus(status='ok')
 
-# async def verify_token(whatsapp_message_webhook: WhatsappMessageWebhook = Depends()) -> str:
-#     settings = get_settings()
-#     if whatsapp_message_webhook.hub_verify_token == settings.verify_token:
-#         return whatsapp_message_webhook.hub_challenge
-#     else:
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Invalid token provided')
-
-# async def verify_signature(request: Request, x_hub_signature: str = Header(None)) -> None:
-#     settings = get_settings()
-#     signature = request.headers.get('X-Hub-Signature-256')
-#     if not signature:
-#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Signature missing')
-    
-#     signature = signature.split('-256', maxsplit=1)[0]
-#     data = await request.body()
-#     data = data.decode('utf-8')
-#     expected_signature = hmac.new(bytes(settings.app_secret, 'latin-1'), data.encode('utf-8'), hashlib.sha256).hexdigest()
-#     if not hmac.compare_digest(signature, expected_signature):
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Whatsapp signature verification failed')
-    
-    
-# @whatsapp_router.post('/message', status_code=status.HTTP_200_OK)
-# async def handle_whatsapp_message(request: Request, x_hub_signature: str = Header(None)) -> WhatsappMessageWebhookResponse:
-#     await verify_signature(request, x_hub_signature)
-#     body = await request.json()
-#     logging.info(f'Whatsapp message received: {body}')
-    
-#     statuses = body.get('entry', {[]})[0].get('changes', {[]})[0].get('value', {}).get('statuses', [])
-#     if statuses:
-#         logging.info(f'Whatsapp message status: {statuses}')
-    
-#     try:
-#         if is_valid_whatsapp_message(body):
-            
-
-# @whatsapp_router.get('/message', status_code=status.HTTP_200_OK)
-# async def verify_whatsapp_message(whatsapp_message_webhook: WhatsappMessageWebhook = Depends(verify_token)) -> WhatsappMessageWebhookResponse:
-#     if whatsapp_message_webhook.hub_mode and whatsapp_message_webhook.hub_verify_token:
-#         if whatsapp_message_webhook.hub_mode == 'subscribe':
-#             logging.info('Whatsapp webhook verified')
-#             return whatsapp_message_webhook.hub_challenge
-        
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Whatsapp webhook verification failed')
-    
-#     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Whatsapp webhook missing required parameters')
-
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid whatsapp message')
+    except Exception as e:
+        logging.error(f'Error processing whatsapp message: {e}')
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Error processing whatsapp message')
 

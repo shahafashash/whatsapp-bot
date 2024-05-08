@@ -1,7 +1,10 @@
-from typing import Any, Literal, Optional
 from enum import StrEnum
+from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, ConfigDict
+
 from app.config import get_settings
+
 
 class WhatsappMessageType(StrEnum):
     TEXT = "text"
@@ -11,6 +14,12 @@ class WhatsappMessageType(StrEnum):
     CONTACTS = "contacts"
     LIST = "list"
     BUTTON = "button"
+
+class WhatsappWebhookChallenge(BaseModel):
+    hub_challenge: str
+
+class WhatsappWebhookStatus(BaseModel):
+    status: Literal['ok', 'error']
 
 class WhatsappMessageHeaders(BaseModel):
     content_type: Literal["application/json"] = "application/json"

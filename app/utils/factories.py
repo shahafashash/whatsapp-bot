@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
-from app.models.whatsapp import (
-    WhatsappMessage, 
-    WhatsappMessagePayload,
-    WhatsappTextMessage,
-    WhatsappTextPayload,
-    WhatsappReactionMessage,
-    WhatsappReactionPayload,
-)
+
+from app.models.whatsapp import (WhatsappMessage, WhatsappMessagePayload,
+                                 WhatsappReactionMessage,
+                                 WhatsappReactionPayload, WhatsappTextMessage,
+                                 WhatsappTextPayload)
 
 
 class AbstractWhatsappMessageFactory(ABC):
